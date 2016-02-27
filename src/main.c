@@ -13,7 +13,12 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
     weather_update();
   }
   
+  if (tick_time->tm_hour == 0 && tick_time->tm_min == 0) {
+    ui_update_date();
+  }
+  
   ui_update_time();
+  ui_update_activity();
 }
 
 static void battery_handler(BatteryChargeState charge_state) {

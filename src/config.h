@@ -18,6 +18,7 @@
 #define PERSIST_KEY_COLOR_RIGHT 7
 
 void config_received_callback(DictionaryIterator* iterator);
-GColor config_get_color_left();
-GColor config_get_color_right();
+GColor config_get_color_bg();
+GColor config_get_color_front();
+GColor config_get_color_sector_light();
 bool config_get_use_celcius();

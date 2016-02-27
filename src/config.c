@@ -22,20 +22,24 @@ void config_received_callback(DictionaryIterator* iterator) {
   }
 }
 
-GColor config_get_color_left() {
+GColor config_get_color_bg() {
   if (persist_exists(PERSIST_KEY_COLOR_LEFT)) {
     return GColorFromHEX(persist_read_int(PERSIST_KEY_COLOR_LEFT));
   }
   
-  return GColorPastelYellow;
+  return GColorBlack;
 }
 
-GColor config_get_color_right() {
+GColor config_get_color_front() {
   if (persist_exists(PERSIST_KEY_COLOR_RIGHT)) {
     return GColorFromHEX(persist_read_int(PERSIST_KEY_COLOR_RIGHT));
   }
   
-  return GColorOxfordBlue;
+  return GColorWhite;
+}
+
+GColor config_get_color_sector_light() {
+  return GColorDarkGray;
 }
 
 bool config_get_use_celcius() {
