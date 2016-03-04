@@ -19,6 +19,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
   }
 }
 
+
 static void inbox_dropped_callback(AppMessageResult reason, void *context) {
   APP_LOG(APP_LOG_LEVEL_ERROR, "Message dropped!");
 }
@@ -39,6 +40,7 @@ void communication_init() {
   app_message_register_outbox_sent(outbox_sent_callback);
   app_message_open(1024, 64);
 }
+
 
 void communication_request_weather() {
   int use_celcius = config_get_use_celcius() ? 1 : 0;

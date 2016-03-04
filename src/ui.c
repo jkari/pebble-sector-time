@@ -8,9 +8,7 @@
 static TextLayer *s_layer_temperature;
 static TextLayer *s_layer_day_of_month;
 static TextLayer *s_layer_weekday;
-static Layer *s_layer_hands;
-static Layer *s_layer_bg;
-static Layer *s_layer_activity;
+static Layer *s_layer_canvas;
 static Layer *s_layer_battery;
 static GBitmap *s_bitmap_weather = 0;
 static GBitmap *s_bitmap_bluetooth = 0;
@@ -25,14 +23,6 @@ static int get_hour_angle() {
   time_t temp = time(NULL); 
   struct tm *tick_time = localtime(&temp);
   return TRIG_MAX_ANGLE * ((tick_time->tm_hour % 12) / 12.f + tick_time->tm_min / (12.f * 60));
-}
-
-static int get_hour_angle_next_marker() {
-  time_t temp = time(NULL); 
-  struct tm *tick_time = localtime(&temp);
-  int minutes = (tick_time->tm_hour % 12) * 60 + tick_time->tm_min + 12;
-  minutes = minutes - (minutes % 12);
-  return TRIG_MAX_ANGLE * minutes / 720.0f;
 }
 
 static void _ui_set_temperature() {
@@ -62,7 +52,7 @@ static void _ui_reload_bitmap(GBitmap **image, uint32_t resource_id, GColor colo
 static void _ui_set_weather_icon() {
   int32_t resource_id = weather_get_resource_id(weather_get_condition());
   
-  _ui_reload_bitmap(&s_bitmap_weather, resource_id, config_get_color_front());
+  _ui_reload_bitmap(&s_bitmap_weather, resource_id, config_get_color_text());
   bitmap_layer_set_bitmap(s_layer_weather, s_bitmap_weather);
   
   layer_set_hidden((Layer *)s_layer_weather, false);
@@ -108,82 +98,102 @@ static void _draw_sun_cycle(GContext *ctx, GPoint offset) {
   }
   
   APP_LOG(APP_LOG_LEVEL_INFO, "Angle %d - %d", (int)angle_start, (int)angle_end);
-  graphics_context_set_fill_color(ctx, config_get_color_sector_light());
+  graphics_context_set_fill_color(ctx, config_get_color_light());
   graphics_fill_radial(
     ctx,
     GRect(
-      offset.x - SUN_ARC_RADIUS,
-      offset.y - SUN_ARC_RADIUS,
-      2 * SUN_ARC_RADIUS, 2*SUN_ARC_RADIUS
+      offset.x - ARC_RADIUS_SUN,
+      offset.y - ARC_RADIUS_SUN,
+      2 * ARC_RADIUS_SUN, 2*ARC_RADIUS_SUN
     ),
     GOvalScaleModeFitCircle,
-    ARC_WIDTH,
+    ARC_WIDTH_SUN + 1,
     DEG_TO_TRIGANGLE(angle_start),
     DEG_TO_TRIGANGLE(angle_end)
+  );
+  
+  graphics_context_set_fill_color(ctx, config_get_color_dark());
+  graphics_fill_radial(
+    ctx,
+    GRect(
+      offset.x - ARC_RADIUS_SUN,
+      offset.y - ARC_RADIUS_SUN,
+      2 * ARC_RADIUS_SUN, 2*ARC_RADIUS_SUN
+    ),
+    GOvalScaleModeFitCircle,
+    ARC_WIDTH_SUN,
+    DEG_TO_TRIGANGLE(angle_end),
+    DEG_TO_TRIGANGLE(angle_start + 360)
   );
 }
 
 static void _draw_activity_cycle(GContext *ctx, GPoint offset) {
-  float activities[60];
+  uint8_t activities[60];
+  health_update_activity();
   health_get_activity(activities);
   
-  int start_angle = TRIGANGLE_TO_DEG(get_hour_angle_next_marker());
-  APP_LOG(APP_LOG_LEVEL_INFO, "Start angle %d", start_angle);
-  
-  int drawn_to = 0;
-  float activity = activities[0];
+  APP_LOG(APP_LOG_LEVEL_INFO, "Sensitivity %d", config_get_activity_sensitivity());
   
   for (int i = 0; i < 60; i++) {
-    float activity = activities[i];
-    int width = ACTIVITY_ARC_RADIUS - (1.0f - activity) * ARC_WIDTH;
+    float activity = (int)(ACTIVITY_LEVELS * activities[i] / (ACTIVITY_SCALE * config_get_activity_sensitivity()));
+    activity = activity > ACTIVITY_LEVELS ? ACTIVITY_LEVELS : activity;
+    
+    int width = ARC_WIDTH_ACTIVITY * activity / ACTIVITY_LEVELS;
+    int circle_radius = ARC_RADIUS_ACTIVITY - (ARC_WIDTH_ACTIVITY - width);
     
     if (width > 0) {  
-      graphics_context_set_fill_color(ctx, GColorPastelYellow);
+      graphics_context_set_fill_color(ctx, config_get_color_activity());
       graphics_fill_radial(
         ctx,
         GRect(
-          offset.x - width,
-          offset.y - width,
-          2 * width,
-          2 * width
+          offset.x - circle_radius,
+          offset.y - circle_radius,
+          2 * circle_radius,
+          2 * circle_radius
         ),
         GOvalScaleModeFitCircle,
-        (int)(activity * (ARC_WIDTH - 2)),
-        DEG_TO_TRIGANGLE(start_angle + i * 6),
-        DEG_TO_TRIGANGLE(start_angle + (i + 1) * 6)
+        width + 1,
+        DEG_TO_TRIGANGLE(i * 6 - 0.1f),
+        DEG_TO_TRIGANGLE(i * 6 + 6.1f)
       );
     }
   }
 }
 
 static void _draw_bg(GContext *ctx, GPoint offset, GRect area) {
+  #if PBL_PLATFORM_BASALT 
   graphics_context_set_fill_color(ctx, config_get_color_bg());
   graphics_fill_rect(ctx, area, 0, GCornerNone);
+  #endif
   
   _draw_sun_cycle(ctx, offset);
+  _draw_activity_cycle(ctx, offset);
+}
+
+static void _draw_markers(GContext *ctx, GPoint offset) {
+  APP_LOG(APP_LOG_LEVEL_INFO, "Draw markers");
   
-  graphics_context_set_stroke_color(ctx, GColorLightGray);
+  graphics_context_set_stroke_color(ctx, config_get_color_text());
   
   for (int i = 0; i < 60; i++) {
     int length = i % 5 == 0 ? 6 : 3;
     int angle = TRIG_MAX_ANGLE * (i / 60.0f);
     GPoint from = {
-      .x = (int16_t)(sin_lookup(angle) * (int32_t)MARKER_ARC_RADIUS / TRIG_MAX_RATIO) + offset.x,
-      .y = (int16_t)(-cos_lookup(angle) * (int32_t)MARKER_ARC_RADIUS / TRIG_MAX_RATIO) + offset.y,
+      .x = (int16_t)(sin_lookup(angle) * (int32_t)ARC_RADIUS_MARKER / TRIG_MAX_RATIO) + offset.x,
+      .y = (int16_t)(-cos_lookup(angle) * (int32_t)ARC_RADIUS_MARKER / TRIG_MAX_RATIO) + offset.y,
     };
     GPoint to = {
-      .x = (int16_t)(sin_lookup(angle) * (int32_t)(MARKER_ARC_RADIUS - length) / TRIG_MAX_RATIO) + offset.x,
-      .y = (int16_t)(-cos_lookup(angle) * (int32_t)(MARKER_ARC_RADIUS - length) / TRIG_MAX_RATIO) + offset.y,
+      .x = (int16_t)(sin_lookup(angle) * (int32_t)(ARC_RADIUS_MARKER - length) / TRIG_MAX_RATIO) + offset.x,
+      .y = (int16_t)(-cos_lookup(angle) * (int32_t)(ARC_RADIUS_MARKER - length) / TRIG_MAX_RATIO) + offset.y,
     };
     graphics_context_set_stroke_width(ctx, i % 5 == 0 ? 3 : 1);
     graphics_draw_line(ctx, from, to);
   }
-  
-  layer_mark_dirty(s_layer_activity);
-  layer_mark_dirty(s_layer_hands);
 }
 
 static void _draw_hands(GContext *ctx, GPoint offset) {
+  APP_LOG(APP_LOG_LEVEL_INFO, "Draw hands");
+
   time_t temp = time(NULL); 
   struct tm *tick_time = localtime(&temp);
   
@@ -191,54 +201,51 @@ static void _draw_hands(GContext *ctx, GPoint offset) {
   int32_t hour_angle = get_hour_angle();
   
   GPoint minute_from = {
-    .x = (int16_t)(sin_lookup(minute_angle) * (int32_t)(MARKER_ARC_RADIUS - 10) / TRIG_MAX_RATIO) + offset.x,
-    .y = (int16_t)(-cos_lookup(minute_angle) * (int32_t)(MARKER_ARC_RADIUS - 10) / TRIG_MAX_RATIO) + offset.y,
+    .x = (int16_t)(sin_lookup(minute_angle) * (int32_t)(ARC_RADIUS_HAND + HAND_LENGTH_MINUTE) / TRIG_MAX_RATIO) + offset.x,
+    .y = (int16_t)(-cos_lookup(minute_angle) * (int32_t)(ARC_RADIUS_HAND + HAND_LENGTH_MINUTE) / TRIG_MAX_RATIO) + offset.y,
   };
   GPoint minute_to = {
-    .x = (int16_t)(sin_lookup(minute_angle) * (int32_t)(MARKER_ARC_RADIUS - 22) / TRIG_MAX_RATIO) + offset.x,
-    .y = (int16_t)(-cos_lookup(minute_angle) * (int32_t)(MARKER_ARC_RADIUS - 22) / TRIG_MAX_RATIO) + offset.y,
+    .x = (int16_t)(sin_lookup(minute_angle) * (int32_t)(ARC_RADIUS_HAND) / TRIG_MAX_RATIO) + offset.x,
+    .y = (int16_t)(-cos_lookup(minute_angle) * (int32_t)(ARC_RADIUS_HAND) / TRIG_MAX_RATIO) + offset.y,
   };
   GPoint hour_from = {
-    .x = (int16_t)(sin_lookup(hour_angle) * (int32_t)(MARKER_ARC_RADIUS - 16) / TRIG_MAX_RATIO) + offset.x,
-    .y = (int16_t)(-cos_lookup(hour_angle) * (int32_t)(MARKER_ARC_RADIUS - 16) / TRIG_MAX_RATIO) + offset.y,
+    .x = (int16_t)(sin_lookup(hour_angle) * (int32_t)(ARC_RADIUS_HAND + HAND_LENGTH_HOUR) / TRIG_MAX_RATIO) + offset.x,
+    .y = (int16_t)(-cos_lookup(hour_angle) * (int32_t)(ARC_RADIUS_HAND + HAND_LENGTH_HOUR) / TRIG_MAX_RATIO) + offset.y,
   };
   GPoint hour_to = {
-    .x = (int16_t)(sin_lookup(hour_angle) * (int32_t)(MARKER_ARC_RADIUS - 22) / TRIG_MAX_RATIO) + offset.x,
-    .y = (int16_t)(-cos_lookup(hour_angle) * (int32_t)(MARKER_ARC_RADIUS - 22) / TRIG_MAX_RATIO) + offset.y,
+    .x = (int16_t)(sin_lookup(hour_angle) * (int32_t)(ARC_RADIUS_HAND) / TRIG_MAX_RATIO) + offset.x,
+    .y = (int16_t)(-cos_lookup(hour_angle) * (int32_t)(ARC_RADIUS_HAND) / TRIG_MAX_RATIO) + offset.y,
   };
   
   graphics_context_set_stroke_width(ctx, 5);
-  graphics_context_set_stroke_color(ctx, GColorMagenta);
+  graphics_context_set_stroke_color(ctx, config_get_color_minute());
   graphics_draw_line(ctx, minute_from, minute_to);
-  graphics_context_set_stroke_color(ctx, GColorCyan);
+  graphics_context_set_stroke_color(ctx, config_get_color_hour());
   graphics_draw_line(ctx, hour_from, hour_to);
 }
 
-static void _layer_bg_update_callback(Layer *layer, GContext *ctx) {
-  APP_LOG(APP_LOG_LEVEL_INFO, "Update bg");
-  GRect bounds = layer_get_bounds(layer);
-  _draw_bg(ctx, GPoint(bounds.size.w / 2, bounds.size.h / 2), bounds);
-}
+static void _layer_canvas_update_callback(Layer *layer, GContext *ctx) {
+  APP_LOG(APP_LOG_LEVEL_INFO, "Update canvas");
 
-static void _layer_hands_update_callback(Layer *layer, GContext *ctx) {
-  APP_LOG(APP_LOG_LEVEL_INFO, "Update hands");
   GRect bounds = layer_get_bounds(layer);
-  _draw_hands(ctx, GPoint(bounds.size.w / 2, bounds.size.h / 2));
-}
-
-static void _layer_activity_update_callback(Layer *layer, GContext *ctx) {
-  GRect bounds = layer_get_bounds(layer);
-  _draw_activity_cycle(ctx, GPoint(bounds.size.w / 2, bounds.size.h / 2));
-}
-
-static void _layer_battery_update_callback(Layer *layer, GContext *ctx) {
-  GRect bounds = layer_get_bounds(layer);
-  GPoint center = grect_center_point(&bounds);
+  GPoint offset = GPoint(bounds.size.w / 2, bounds.size.h / 2);
   
+  _draw_bg(ctx, GPoint(bounds.size.w / 2, bounds.size.h / 2), bounds);
+  
+  graphics_context_set_fill_color(ctx, config_get_color_bg());
+  graphics_fill_circle(ctx, offset, ARC_RADIUS_SUN - ARC_WIDTH_SUN);
+  
+  _draw_markers(ctx, offset);
+  _draw_hands(ctx, GPoint(bounds.size.w / 2, bounds.size.h / 2));
+  
+  APP_LOG(APP_LOG_LEVEL_INFO, "Update canvas");
+}
+
+static void _layer_battery_update_callback(Layer *layer, GContext *ctx) {  
   BatteryChargeState charge_state = battery_state_service_peek();
   int current_charge = is_battery_animation_active ? battery_animation_percent : charge_state.charge_percent;
 
-  graphics_context_set_stroke_color(ctx, config_get_color_front());
+  graphics_context_set_stroke_color(ctx, config_get_color_text());
   graphics_context_set_stroke_width(ctx, BATTERY_STROKE + 2);
   graphics_draw_line(ctx, GPoint(BATTERY_STROKE, BATTERY_STROKE / 2 + 1), GPoint(BATTERY_STROKE + BATTERY_WIDTH, BATTERY_STROKE / 2 + 1));
   
@@ -305,30 +312,20 @@ void ui_load(Window *window) {
   bitmap_layer_set_compositing_mode(s_layer_bluetooth, GCompOpSet);
   bitmap_layer_set_bitmap(s_layer_bluetooth, s_bitmap_bluetooth);
   
-  s_layer_bg = layer_create(GRect(0, 0, bounds.size.w, bounds.size.h));
-  layer_set_update_proc(s_layer_bg, _layer_bg_update_callback);
+  s_layer_canvas = layer_create(GRect(0, 0, bounds.size.w, bounds.size.h));
+  layer_set_update_proc(s_layer_canvas, _layer_canvas_update_callback);
 
-  s_layer_hands = layer_create(GRect(0, 0, bounds.size.w, bounds.size.h));
-  layer_set_update_proc(s_layer_hands, _layer_hands_update_callback);
-  
   s_layer_battery = layer_create(GRect(center.x + BATTERY_X, center.y + BATTERY_Y, BATTERY_WIDTH + BATTERY_STROKE * 2, 20));
   layer_set_update_proc(s_layer_battery, _layer_battery_update_callback);
   
-  s_layer_activity = layer_create(GRect(0, 0, bounds.size.w, bounds.size.h));
-  layer_set_update_proc(s_layer_activity, _layer_activity_update_callback);
-  
-  layer_add_child(window_layer, s_layer_bg);
-  
-  layer_add_child(s_layer_bg, text_layer_get_layer(s_layer_day_of_month));
-  layer_add_child(s_layer_bg, text_layer_get_layer(s_layer_weekday));
-  layer_add_child(s_layer_bg, text_layer_get_layer(s_layer_temperature));
-  
-  layer_add_child(s_layer_bg, bitmap_layer_get_layer(s_layer_weather));
-  layer_add_child(s_layer_bg, bitmap_layer_get_layer(s_layer_bluetooth));
-  
-  layer_add_child(s_layer_bg, s_layer_battery);
-  layer_add_child(s_layer_bg, s_layer_hands);
-  layer_add_child(s_layer_bg, s_layer_activity);
+  // front to back  
+  layer_add_child(window_layer, s_layer_canvas);
+  layer_add_child(window_layer, text_layer_get_layer(s_layer_day_of_month));
+  layer_add_child(window_layer, text_layer_get_layer(s_layer_weekday));
+  layer_add_child(window_layer, text_layer_get_layer(s_layer_temperature));
+  layer_add_child(window_layer, bitmap_layer_get_layer(s_layer_weather));
+  layer_add_child(window_layer, bitmap_layer_get_layer(s_layer_bluetooth));
+  layer_add_child(window_layer, s_layer_battery);
 }
 
 void ui_unload(void) {
@@ -340,8 +337,7 @@ void ui_unload(void) {
   bitmap_layer_destroy(s_layer_bluetooth);
   
   layer_destroy(s_layer_battery);
-  layer_destroy(s_layer_hands);
-  layer_destroy(s_layer_bg);
+  layer_destroy(s_layer_canvas);
   
   fonts_unload_custom_font(s_font_big);
   fonts_unload_custom_font(s_font_small);
@@ -350,24 +346,8 @@ void ui_unload(void) {
   gbitmap_destroy(s_bitmap_bluetooth);
 }
 
-void ui_update_time(void) {
-  layer_mark_dirty(s_layer_hands);
-}
-
-void ui_update_activity() {
-  layer_mark_dirty(s_layer_activity);
-}
-
-void ui_update_all(void) {
-  
-  text_layer_set_text_color(s_layer_temperature, config_get_color_front());
-  text_layer_set_text_color(s_layer_weekday, config_get_color_front());
-  text_layer_set_text_color(s_layer_day_of_month, config_get_color_front());
-  
-  ui_update_weather();
-  ui_update_date();
-  
-  layer_mark_dirty(s_layer_bg);
+void ui_update_view(void) {  
+  layer_mark_dirty(s_layer_canvas);
 }
 
 void ui_bluetooth_set_available(bool is_available) {
@@ -385,8 +365,18 @@ void ui_battery_charge_stop(void) {
 }
 
 void ui_update_weather() {
-  _generate_bitmaps();
-
   _ui_set_temperature();
   _ui_set_weather_icon();
+  
+  ui_update_view();
+}
+
+void ui_update_colors() {
+  _generate_bitmaps();
+
+  text_layer_set_text_color(s_layer_temperature, config_get_color_text());
+  text_layer_set_text_color(s_layer_weekday, config_get_color_text());
+  text_layer_set_text_color(s_layer_day_of_month, config_get_color_text());
+
+  ui_update_view();
 }

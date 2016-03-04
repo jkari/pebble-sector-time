@@ -17,8 +17,7 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
     ui_update_date();
   }
   
-  ui_update_time();
-  ui_update_activity();
+  ui_update_view();
 }
 
 static void battery_handler(BatteryChargeState charge_state) {
@@ -29,10 +28,16 @@ static void battery_handler(BatteryChargeState charge_state) {
   }
 }
 
-static void bluetooth_handler(bool is_connected) {
+static void _bluetooth_handler(bool is_connected) {
   ui_bluetooth_set_available(is_connected);
   
   vibes_double_pulse();
+}
+
+static void _focus_handler(bool in_focus) {
+  if (in_focus) {
+    ui_update_view();
+  }
 }
 
 static void main_window_load(Window *window) {
@@ -41,32 +46,34 @@ static void main_window_load(Window *window) {
   communication_init();
 
   ui_load(window);
-}
-
-static void main_window_unload(Window *window) {
-  APP_LOG(APP_LOG_LEVEL_INFO, "Window unload");
-  ui_unload();
-}
-
-static void main_window_appear(Window *window) {
-  APP_LOG(APP_LOG_LEVEL_INFO, "Window appear");
-  tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
   
+  tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
   battery_state_service_subscribe(battery_handler);
   
   ui_bluetooth_set_available(connection_service_peek_pebble_app_connection());
   connection_service_subscribe((ConnectionHandlers) {
-    .pebble_app_connection_handler = bluetooth_handler
+    .pebble_app_connection_handler = _bluetooth_handler
   });
   
-  ui_update_all();
+  app_focus_service_subscribe_handlers((AppFocusHandlers){
+    .did_focus = _focus_handler,
+    .will_focus = _focus_handler
+  });
+  
+  ui_update_weather();
+  ui_update_date();
+  ui_update_colors();
 }
 
-static void main_window_disappear(Window *window) {
-  APP_LOG(APP_LOG_LEVEL_INFO, "Window disappear");
+static void main_window_unload(Window *window) {
+  APP_LOG(APP_LOG_LEVEL_INFO, "Window unload");
+  
   connection_service_unsubscribe();
   battery_state_service_unsubscribe();
   tick_timer_service_unsubscribe();
+  app_focus_service_unsubscribe();
+  
+  ui_unload();
 }
 
 static void handle_init(void) {
@@ -74,11 +81,9 @@ static void handle_init(void) {
   
   window_set_window_handlers(s_main_window, (WindowHandlers) {
     .load = main_window_load,
-    .unload = main_window_unload,
-    .appear = main_window_appear,
-    .disappear = main_window_disappear,
+    .unload = main_window_unload
   });
-  
+
   window_stack_push(s_main_window, true);
 }
 

@@ -1,7 +1,13 @@
 {
     "appKeys": {
-        "KEY_COLOR_LEFT": 5,
-        "KEY_COLOR_RIGHT": 6,
+        "KEY_ACTIVITY_SENSITIVITY": 13,
+        "KEY_COLOR_ACTIVITY": 12,
+        "KEY_COLOR_BG": 5,
+        "KEY_COLOR_DARK": 9,
+        "KEY_COLOR_HOUR": 11,
+        "KEY_COLOR_LIGHT": 8,
+        "KEY_COLOR_MINUTE": 10,
+        "KEY_COLOR_TEXT": 6,
         "KEY_CONDITIONS": 1,
         "KEY_MESSAGE_TYPE": 7,
         "KEY_SUNRISE": 2,
@@ -11,11 +17,12 @@
     },
     "capabilities": [
         "location",
-        "configurable"
+        "configurable",
+        "health"
     ],
     "companyName": "Jussi Kari",
     "enableMultiJS": false,
-    "longName": "Show Time",
+    "longName": "My Time",
     "projectType": "native",
     "resources": {
         "media": [
@@ -32,11 +39,6 @@
                 "name": "FONT_MAIN_16",
                 "targetPlatforms": null,
                 "type": "font"
-            },
-            {
-                "file": "images/out_0.png",
-                "name": "IMAGE_CLOUDS",
-                "type": "png-trans"
             },
             {
                 "file": "images/rain-light.png",
@@ -106,13 +108,13 @@
         ]
     },
     "sdkVersion": "3",
-    "shortName": "Show Time",
+    "shortName": "My Time",
     "targetPlatforms": [
         "basalt",
         "chalk"
     ],
-    "uuid": "3c7dfc46-18ab-46ed-bb6b-36a0cb98fc7f",
-    "versionLabel": "1.0",
+    "uuid": "7c61e95c-4d6c-4b16-b751-8ec68da543ad",
+    "versionLabel": "1.4",
     "watchapp": {
         "watchface": true
     }
