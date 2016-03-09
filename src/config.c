@@ -17,7 +17,8 @@ static void _update_settings(int use_celcius, int color_bg, int color_text, int 
   persist_write_int(PERSIST_KEY_COLOR_ACTIVITY, color_activity);
   persist_write_int(PERSIST_KEY_ACTIVITY_SENSITIVITY, activity_sensitivity);
   
-  ui_update_view();
+  ui_update_colors();
+  ui_show();
   weather_update();
 }
 

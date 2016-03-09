@@ -269,12 +269,19 @@ void ui_update_date(void) {
 
   static char s_day_of_month_buffer[6];
   strftime(s_day_of_month_buffer, sizeof(s_day_of_month_buffer), "%d", tick_time);
-    
-  static char s_weekday_buffer[4];
-  strftime(s_weekday_buffer, sizeof(s_weekday_buffer), "%a", tick_time);
+  
+  static char** week_days;
+  
+  if (true) {
+    static char* fi_week_days[7] = {"ma", "ti", "ke", "to", "pe", "la", "su"};
+    week_days = fi_week_days;
+  }
+  
+  //static char s_weekday_buffer[4];
+  //strftime(s_weekday_buffer, sizeof(s_weekday_buffer), "%a", tick_time);
   
   text_layer_set_text(s_layer_day_of_month, s_day_of_month_buffer);
-  text_layer_set_text(s_layer_weekday, s_weekday_buffer);
+  text_layer_set_text(s_layer_weekday, week_days[tick_time->tm_wday]);
 }
 
 void ui_load(Window *window) {
@@ -346,8 +353,15 @@ void ui_unload(void) {
   gbitmap_destroy(s_bitmap_bluetooth);
 }
 
-void ui_update_view(void) {  
-  layer_mark_dirty(s_layer_canvas);
+void ui_show() {  
+  Layer* layer_root = window_get_root_layer(layer_get_window(s_layer_canvas));
+  layer_set_hidden(layer_root, false);
+  layer_mark_dirty(layer_root);
+}
+
+void ui_hide() {
+  Layer* layer_root = window_get_root_layer(layer_get_window(s_layer_canvas));
+  layer_set_hidden(layer_root, true);
 }
 
 void ui_bluetooth_set_available(bool is_available) {
@@ -368,7 +382,7 @@ void ui_update_weather() {
   _ui_set_temperature();
   _ui_set_weather_icon();
   
-  ui_update_view();
+  ui_show();
 }
 
 void ui_update_colors() {
@@ -378,5 +392,5 @@ void ui_update_colors() {
   text_layer_set_text_color(s_layer_weekday, config_get_color_text());
   text_layer_set_text_color(s_layer_day_of_month, config_get_color_text());
 
-  ui_update_view();
+  ui_show();
 }

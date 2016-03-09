@@ -10,11 +10,9 @@
 #define ARC_RADIUS_SUN PBL_IF_ROUND_ELSE(91, 70)
 #define ARC_RADIUS_MARKER PBL_IF_ROUND_ELSE(72, 56)
 #define ARC_RADIUS_ACTIVITY PBL_IF_ROUND_ELSE(85, 64)
-#define ARC_RADIUS_HAND PBL_IF_ROUND_ELSE(46, 36)
-#define HAND_LENGTH_MINUTE PBL_IF_ROUND_ELSE(12, 9)
-#define HAND_LENGTH_HOUR PBL_IF_ROUND_ELSE(6, 5)
-#define MINUTE_HAND_LENGTH PBL_IF_ROUND_ELSE(60, 48)
-#define HOUR_HAND_LENGTH PBL_IF_ROUND_ELSE(40, 32)
+#define ARC_RADIUS_HAND PBL_IF_ROUND_ELSE(45, 36)
+#define HAND_LENGTH_MINUTE PBL_IF_ROUND_ELSE(14, 9)
+#define HAND_LENGTH_HOUR PBL_IF_ROUND_ELSE(7, 5)
 #define DATE_OFFSET_Y PBL_IF_ROUND_ELSE(-19, -19)
 #define WEEK_OFFSET_Y PBL_IF_ROUND_ELSE(-2, -2)
 #define WEATHER_OFFSET_Y PBL_IF_ROUND_ELSE(-3, -3)
@@ -30,7 +28,8 @@
 void ui_bluetooth_set_available(bool is_available);
 void ui_load(Window *window);
 void ui_unload(void);
-void ui_update_view(void);
+void ui_hide();
+void ui_show();
 void ui_update_colors();
 void ui_update_time(void);
 void ui_update_date(void);

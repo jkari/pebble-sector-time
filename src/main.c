@@ -17,7 +17,7 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
     ui_update_date();
   }
   
-  ui_update_view();
+  ui_show();
 }
 
 static void battery_handler(BatteryChargeState charge_state) {
@@ -34,9 +34,15 @@ static void _bluetooth_handler(bool is_connected) {
   vibes_double_pulse();
 }
 
-static void _focus_handler(bool in_focus) {
+static void _focusing_handler(bool in_focus) {
   if (in_focus) {
-    ui_update_view();
+    ui_hide();
+  }
+}
+
+static void _focused_handler(bool in_focus) {
+  if (in_focus) {
+    ui_show();
   }
 }
 
@@ -56,8 +62,8 @@ static void main_window_load(Window *window) {
   });
   
   app_focus_service_subscribe_handlers((AppFocusHandlers){
-    .did_focus = _focus_handler,
-    .will_focus = _focus_handler
+    .did_focus = _focused_handler,
+    .will_focus = _focusing_handler
   });
   
   ui_update_weather();
